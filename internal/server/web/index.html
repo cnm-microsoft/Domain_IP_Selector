@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domain IP Selector</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Domain IP Selector</h1>
+            <p>如果觉得对您有帮助，请给我一颗<a href="https://github.com/ccxkai233/Domain_IP_Selector" target="_blank" style="text-decoration: none; color: #fff; font-weight: bold;">「Star ⭐」</a></p>
+        </header>
+        <main class="main-content">
+            <div class="top-panels-container">
+                <div class="config-panel">
+                    <h2><span class="icon">⚙️</span> 可更改配置</h2>
+                    <div id="actions">
+                        <button id="run-test" class="btn btn-primary">
+                            <span class="icon">▶️</span> 单次测速
+                        </button>
+                        <button id="save-config" class="btn btn-secondary">
+                            <span class="icon">💾</span> 保存到全局配置
+                        </button>
+                    </div>
+                    <form id="editable-config-form">
+                        <!-- 可编辑配置项将由 script.js 动态生成 -->
+                    </form>
+                </div>
+                <div class="right-panel">
+                    <div class="log-panel">
+                        <h2><span class="icon">📄</span> 实时日志</h2>
+                        <div id="progress-log">
+                            <pre>欢迎使用！请配置后点击“单次测速”开始。</pre>
+                        </div>
+                    </div>
+                    <div class="non-editable-config-panel">
+                         <h2><span class="icon">🔒</span> 不可更改配置</h2>
+                         <form id="non-editable-config-form">
+                            <!-- 不可编辑配置项将由 script.js 动态生成 -->
+                         </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <section id="results-panel" class="results-panel" style="display: none;">
+             <h2><span class="icon">🏆</span> 优选 IP 结果</h2>
+             <div id="results-actions">
+                 <button id="copy-all-ips" class="btn btn-secondary">
+                    <span class="icon">📋</span> 一键复制所有 IP
+                 </button>
+             </div>
+             <div id="results-table-container">
+                <!-- 结果表格将由 script.js 动态生成 -->
+             </div>
+        </section>
+        <footer>
+            <p>由 Roo 强力驱动</p>
+        </footer>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

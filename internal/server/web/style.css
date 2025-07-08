@@ -1,0 +1,296 @@
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --background-color: #f8f9fa;
+    --surface-color: #ffffff;
+    --text-color: #212529;
+    --border-color: #dee2e6;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+    font-family: var(--font-family);
+    line-height: 1.6;
+    margin: 0;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: 1200px;
+    background: var(--surface-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+header {
+    background: var(--primary-color);
+    color: white;
+    padding: 20px 30px;
+    text-align: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2em;
+    color: white;
+}
+
+header p {
+    margin: 5px 0 0;
+    opacity: 0.9;
+}
+
+.main-content {
+    padding: 20px;
+}
+
+.top-panels-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.config-panel, .right-panel {
+    flex: 1; /* Each takes up half the space */
+}
+
+.config-panel, .log-panel, .non-editable-config-panel {
+     background-color: var(--surface-color);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: transparent !important; /* Override background */
+    box-shadow: none; /* Override shadow */
+    padding: 0 !important; /* Override padding */
+}
+
+.results-panel {
+    padding: 20px;
+}
+
+#actions {
+    margin-bottom: 20px; /* Add space between buttons and form */
+}
+
+h2 {
+    font-size: 1.5em;
+    color: var(--text-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 10px;
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+}
+
+.icon {
+    margin-right: 10px;
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.form-group input:disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.form-group .description {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 5px;
+}
+
+.tag-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: #fdfdff;
+}
+
+.tag-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--primary-color);
+    background-color: var(--surface-color);
+    color: var(--primary-color);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s ease-in-out;
+}
+
+.tag-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.tag-btn.selected {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 600;
+}
+
+#actions {
+    margin-top: 25px;
+    display: flex;
+    gap: 15px;
+}
+
+.btn {
+    padding: 12px 25px;
+    font-size: 1em;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+/* Style for the copy buttons specifically */
+#copy-all-ips, .results-table .copy-ip-btn {
+    background-color: #5bc0de; /* A nice light blue */
+}
+
+#copy-all-ips:hover, .results-table .copy-ip-btn:hover {
+    background-color: #31b0d5; /* A slightly darker blue for hover */
+}
+
+#progress-log {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    border-radius: 8px;
+    height: 400px;
+    overflow-y: auto;
+    font-family: "Consolas", "Monaco", "Menlo", monospace;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid #333;
+}
+
+#results-actions {
+    margin-bottom: 15px;
+}
+
+#results-table-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.results-table th, .results-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.results-table thead th {
+    background-color: #e9ecef;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.results-table tbody tr:hover {
+    background-color: #f1f3f5;
+}
+
+.results-table .copy-ip-btn {
+    padding: 4px 8px;
+    font-size: 0.8em;
+    /* The specific style is now handled by the new rule above */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.results-table .copy-ip-btn:hover {
+    background-color: #5a6268;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 0.9em;
+    color: #888;
+    border-top: 1px solid var(--border-color);
+}
+/* --- Validation Styles --- */
+
+/* Style for invalid input fields */
+.form-group input.invalid {
+    border-color: #e74c3c; /* A prominent red */
+    box-shadow: 0 0 5px rgba(231, 76, 60, 0.5);
+}
+
+/* Style for the error message paragraph */
+.error-message {
+    color: #e74c3c;
+    font-size: 0.85em;
+    margin-top: 5px;
+    margin-bottom: 0;
+}

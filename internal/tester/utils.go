@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -33,7 +34,7 @@ func getDialContext(ip *net.IPAddr, port int) func(ctx context.Context, network,
 		fakeSourceAddr = fmt.Sprintf("[%s]:%d", ip.String(), port)
 	}
 	return func(ctx context.Context, network, address string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, fakeSourceAddr)
+		return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, network, fakeSourceAddr)
 	}
 }
 

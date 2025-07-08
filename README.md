@@ -1,124 +1,114 @@
-# 域名优选 IP 引擎 (Domain IP Selector)
+# Domain IP Selector (Go) - Cloudflare 优选IP工具
 
-## 🚀 项目概述
+<p align="center">
+  <img src="https://img.shields.io/badge/language-Go-blue.svg" alt="Language">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/status-active-brightgreen.svg" alt="Status">
+</p>
 
-本工具旨在通过对大量由cloudflare提供cdn服务的域名进行 DNS 解析，筛选出 Cloudflare 的 IP 地址，并对这些 IP 进行延迟和下载速度测试，最终根据地理位置和测试结果，筛选出在当前网络环境下表现最佳的 IP 地址。
+<p align="center">
+  一个用 Go 语言编写的高性能 Cloudflare IP 地址优选工具，旨在帮助用户快速找到当前网络环境下连接质量最佳的 Cloudflare IP。
+</p>
 
-## 🏃‍♂️ 快速使用
+---
 
-直接下载 [releases](https://github.com/ccxkai233/Domain_IP_Selector/releases) 里最新版本的 exe 文件，将其放入一个单独的文件夹内。
+## 📚 目录
 
-### 1️⃣ 运行程序
+- [Domain IP Selector (Go) - Cloudflare 优选IP工具](#domain-ip-selector-go---cloudflare-优选ip工具)
+  - [📚 目录](#-目录)
+  - [✨ 主要特性](#-主要特性)
+  - [🚀 如何使用](#-如何使用)
+    - [🌐 方式一：Web UI 模式 (推荐)](#-方式一web-ui-模式-推荐)
+    - [💻 方式二：命令行 (CLI) 模式](#-方式二命令行-cli-模式)
+  - [⚙️ 配置文件说明 (`config.yaml`)](#️-配置文件说明-configyaml)
+  - [📊 结果文件说明](#-结果文件说明)
+  - [🛠️ 如何编译与分发](#️-如何编译与分发)
+    - [编译](#编译)
+  - [致谢](#致谢)
 
-直接双击 `DomainIPSelector.exe` 文件。
-
-**首次运行**:
-程序在启动时会默认生成一份默认的 `config.yaml`, `locations.json`, `reputation_domains.txt` 文件。
-
-### 2️⃣ 修改配置 (可选)
-
-首次运行后，您可以根据需要编辑自动生成的 `config.yaml` 文件，默认不需要动。
-
-### 3️⃣ 查看结果
-
-程序运行完毕后，会在 `.exe` 文件所在的目录下生成结果文件，例如 `result_ipv4.json` 和 `result_ipv4.csv`。
-
+---
 
 ## ✨ 主要特性
 
-- **IP 版本选择**: 可通过配置选择测试 IPv4 或 IPv6。
-- **域名与IP去重**: 自动去除域名与解析后的IP列表中的重复项，提高解析效率。
-- **多维度测试**:
-  - **延迟测试**: 使用 HTTPing 测试 IP 的延迟和丢包率。
-  - **速度测试**: 对低延迟的 IP 进行真实下载速度测试。
-- **灵活的分组与筛选**:
-  - 可按地理区域 (`region`) 或数据中心 (`colo`) 进行分组。
-  - 可只筛选指定的区域或数据中心进行测试。
-  - 自动补充逻辑，确保每个分组都能获得足够数量的有效测速结果。
-- **全面并发控制**: 可分别配置 DNS 解析、延迟测试、速度测试的并发数，以平衡测试速度和系统资源占用。
-- **格式化输出**: 将最终结果同时输出为 `.json` 和 `.csv` 格式，并根据 IP 版本自动命名。
-- **下载速度限制**: 可选配置下载速度上限，避免因测速占用过多带宽。
+*   🧠 **核心思路**：使用信誉域名进行DNS，快速获得有潜力的IP，关于什么是信誉域名，以及本项目具体的思路，具体请看[这篇文章](https://github.com/ccxkai233/PublicDocuments/blob/main/Domain%20IP%20Selector%E7%9A%84%E8%AE%BE%E8%AE%A1%E6%80%9D%E8%B7%AF.md)
+*   **🖥️ 可视化操作界面**：提供直观的 Web UI，所有操作均可在浏览器中完成，并实时显示优选进度和结果。
+*   **⌨️ 双模式支持**：除了推荐的 Web 模式，也为高级用户保留了传统的命令行（CLI）运行模式。
+*   **🔧 可配置**：通过网页，您可以自由定制延迟上限、速度上下限、IP版本（IPv4/IPv6）、筛选区域等参数，并一键保存为 `config.yaml` 文件，如果您有高级需求，也可以直接编辑配置文件，里面有更多的可配置项。
+*   **💾 结果保存**：优选任务完成后，结果会自动保存为 `result_*.json` 和 `result_*.csv` 文件，方便查看和使用。
 
-## 📂 项目结构
+## 🚀 如何使用
 
-```
-Domain_IP_Selector_Go/
-├── cmd/
-│   └── main.go           # 程序主入口
-├── internal/
-│   ├── config/
-│   │   └── config.go     # 配置加载逻辑
-│   ├── datasource/
-│   │   ├── cfips.go      # Cloudflare IP 数据源处理
-│   │   └── domains.go    # 域名列表数据源处理
-│   ├── locations/
-│   │   └── locations.go  # IP 地理位置映射
-│   ├── output/
-│   │   ├── csv.go        # CSV 文件输出
-│   │   └── json.go       # JSON 文件输出
-│   └── tester/
-│       ├── httping.go    # 延迟测试
-│       ├── speedtest.go  # 速度测试
-│       └── utils.go      # 测试相关工具函数
-├── pkg/
-│   └── model/
-│       └── types.go      # 项目核心数据结构
-├── go.mod
-├── go.sum
-└── README.md
-```
+### 🌐 方式一：Web UI 模式 (推荐)
 
-## ⚙️ 工作流程
+这是最适合小白上手的使用方式。
 
-程序遵循以下步骤来完成优选过程：
+1.  🖱️ **双击运行**：直接双击 `main.exe` 文件。
+2.  🌐 **自动打开浏览器**：程序会自动在您的默认浏览器中打开操作界面 (地址通常是 `http://localhost:8080`)。
+3.  ⚙️ **配置与运行**：
+    *   在网页上，您可以直观地修改各项配置参数，根据自己的需要进行调整，也可以一键保存为新的配置文件，方便未来使用。
+    *   点击“开始”按钮，程序便会开始执行IP优选任务。
+    *   页面下方的日志窗口会实时显示当前的进度。
+    *   任务完成后，会自动拖动页面到结果处表格，可以方便的复制优选IP。
 
-1.  **加载配置**: 从项目根目录的 `config.yaml` 文件加载配置。
-2.  **初始化数据源**:
-    - 加载 `locations.json` 获取 Cloudflare Colo 数据中心到地理区域的映射。
-    - 加载 `reputation_domains.txt` 获取用于解析的域名列表（已去重）。
-    - 根据配置的 IP 版本，加载或下载对应的 Cloudflare IP 段（例如 `cf-ips-ipv4.txt`）。
-3.  **IP 筛选与延迟测试**:
-    - **并发解析**所有域名（并发数可控），根据配置只查找 IPv4 或 IPv6 地址。
-    - 对所有解析出的 IP 地址进行**去重**，确保每个 IP 只被测试一次。
-    - 将去重后的 IP 与 Cloudflare IP 段进行比对，过滤出属于 **Cloudflare 的 IP**。
-    - 对所有 Cloudflare IP 进行**并发 HTTPing 延迟测试**（并发数可控）。
-    - 淘汰掉延迟过高或丢包率过高的 IP。
-4.  **分组与 Top N 筛选**:
-    - **过滤与分组**:
-      - （可选）根据配置 (`filter_regions`, `filter_colos`) 筛选出符合条件的 IP。
-      - 根据配置 (`group_by`) 将 IP 按地理区域或数据中心进行分组。
-      - 在每个分组内，按延迟从低到高排序。
-5.  **下载速度测试**:
-    - 对每个分组内的 IP，按延迟顺序进行并发下载速度测试。
-    - 如果某个 IP 测速失败，会自动从该分组的后续候选中取一个进行补充测试，直到获得足够数量 (`top_n_per_group`) 的成功结果。
-    - 使用信号量机制控制并发数，防止因带宽抢占导致结果不准。
-    - （可选）根据配置对下载速度进行限制，避免测试占用过多带宽。
-6.  **生成结果**:
-    - 将包含延迟、丢包率、下载速度等信息的最终结果按速度从高到低排序。
-    - 将结果写入到带 IP 版本标识的 `result_ipvX.json` 和 `result_ipvX.csv` 文件中。
+> 💡 **提示**: 首次运行程序时，会自动在 `.exe` 文件同目录下生成 `config.yaml`, `locations.json`, `reputation_domains.txt` 三个文件。
+
+### 💻 方式二：命令行 (CLI) 模式
+
+如果您是大佬，更喜欢命令行的方式，或需要在自动化脚本中使用，可以选择此模式。
+
+1.  ⌨️ 打开一个终端（如 PowerShell 或 CMD）。
+2.  📂 进入 `main.exe` 所在的目录。
+3.  ▶️ 执行以下命令：
+    ```bash
+    .\main.exe --cli
+    ```
+4.  📄 程序将会在终端中输出实时日志，并执行优选任务。
+5.  🐍 Releases 中附带一个定时优选IP并更新到A记录的python脚本，您可以直接使用，或参考开发自己的脚本。
+
+## ⚙️ 配置文件说明 (`config.yaml`)
+
+您可以通过修改 `config.yaml` 文件来调整优选策略。以下是几个常用参数的说明：
+
+| 参数名              | 说明                                                               | 示例值                  |
+| ------------------- | ------------------------------------------------------------------ | ----------------------- |
+| `max_latency`       | **最高延迟 (毫秒)**。延迟高于此值的IP会被淘汰。                    | `300`                   |
+| `min_speed`         | **最低下载速度 (MB/s)**。速度低于此值的IP会被淘汰。                | `5.0`                   |
+| `top_n_per_group`   | **每组保留的IP数**。按区域分组后，每组保留N个最快的IP。            | `5`                     |
+| `ip_version`        | **IP版本**。可以设置为 `"ipv4"` 或 `"ipv6"`。                        | `"ipv4"`                |
+| `filter_regions`    | **区域筛选**。只测试指定区域的IP，留空则测试所有。                 | `["Asia Pacific", "North America"]`      |
+| `filter_colos`      | **Colo筛选**。只测试指定数据中心的IP，留空则测试所有。             | `["SJC", "LAX"]`        |
+
+## 📊 结果文件说明
+
+任务完成后，您会在 `.exe` 目录找到给人类看的 `result_ipv4.csv` (或 `result_ipv6.csv`) 文件。您可以用 Excel 或其他表格软件打开它。
+
+以及给自动化程序看的 `result_ipv4.json` (或 `result_ipv6.json`) 文件。
+
+文件中的关键列说明：
+
+| 列名            | 说明                                       |
+| --------------- | ------------------------------------------ |
+| `Address`       | 优选出的 Cloudflare IP 地址。              |
+| `Delay`         | 该 IP 的网络延迟（单位：毫秒）。           |
+| `DownloadSpeed` | 下载速度（单位：KB/s）。                   |
+| `Colo`          | 该 IP 所属的 Cloudflare 数据中心代码。     |
+| `Region`        | 该 IP 所属的地理区域（如 `North America`）。        |
+
+---
 
 ## 🛠️ 如何编译与分发
-
 ### 编译
-
-如果需要自行编译，请确保您已安装 Go 语言环境。然后打开终端，进入 `Domain_IP_Selector_Go` 目录，执行以下命令：
+如果需要自行编译，请确保您已安装 Go 语言环境。然后打开终端，进入 Domain_IP_Selector_Go 目录，执行以下命令：
 
 ```bash
-# -s -w 参数可以减小生成文件的大小
 go build -ldflags "-s -w" -o "..\DomainIPSelector.exe" ./cmd
 ```
+该命令会在项目根目录（上一级目录）生成 DomainIPSelector.exe 文件。
 
-该命令会在项目根目录（上一级目录）生成 `DomainIPSelector.exe` 文件。
+---
 
-## 🔭 未来可能的开发方向
+##  致谢
 
-- **命令行参数**: 将配置项（如并发数、延迟阈值等）改为通过命令行参数传入，增加灵活性。
-- **Web 界面**: 为工具开发一个简单的 Web 界面，使其更易于使用。
-
-如果您有任何想法或问题，欢迎提交 Issue 或 Pull Request。
-
-## 🙏 致谢与许可
-
-本项目的核心测速逻辑，受到了 [CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) 项目的启发并直接使用了其部分源代码。我们对原作者的辛勤工作和无私分享表示衷心的感谢。
-
-根据原项目的开源协议，本项目同样基于 **GNU General Public License v3.0 (GPL-3.0)** 进行分发。您可以在项目根目录找到 `LICENSE` 文件的副本。如果您分发此软件或其衍生版本，您必须遵守此协议的条款。
+*   感谢 **Gemini大善人** 对本项目的大力支持。ps：如果不是它太过谄媚，好几次把我带沟里去了，这个项目可以完成的快上不少。
+*   感谢 [**XIU2/CloudflareSpeedTest**](https://github.com/XIU2/CloudflareSpeedTest) 项目，本项目的测速逻辑来源于此，并直接应用了部分源代码。
+*   因此本项目也遵循相同的开源协议 [MIT License](https://github.com/ccxkai233/Domain_IP_Selector/blob/main/LICENSE)。

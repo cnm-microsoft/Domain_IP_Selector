@@ -23,6 +23,10 @@ max_latency: 300
 # top_n_per_group: 从每个分组（由 group_by 定义）中，选择延迟最低的前 N 个 IP 进入最终的速度测试。
 top_n_per_group: 5
 
+# min_speed: 下载速度测试的最低速度要求（单位：MB/s）。
+# 速度低于此值的 IP 将被淘汰。设置为 0 表示不限制。
+min_speed: 5
+
 # --- IP 版本配置 ---
 # ip_version: 选择要测试的 IP 版本。
 # 可选值："ipv4" 或 "ipv6"。默认为 "ipv4"。

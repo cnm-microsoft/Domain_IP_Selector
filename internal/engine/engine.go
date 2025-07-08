@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,7 +21,18 @@ import (
 type ProgressCallback func(message string)
 
 // Run 启动 IP 优选引擎
-func Run(cfg *config.Config, locationsPath, domainsPath, exeDir string, progressCb ProgressCallback) ([]model.FinalResult, error) {
+// SimplifiedResult 定义了最终输出的扁平化数据结构
+type SimplifiedResult struct {
+	Address       string  `json:"Address"`
+	SourceDomain  string  `json:"SourceDomain"`
+	Delay         int64   `json:"Delay"` // 纳秒
+	LossRate      float64 `json:"LossRate"`
+	Colo          string  `json:"Colo"`
+	Region        string  `json:"Region"`
+	DownloadSpeed int     `json:"DownloadSpeed"` // MB/s
+}
+
+func Run(cfg *config.Config, locationsPath, domainsPath, exeDir string, progressCb ProgressCallback) ([]SimplifiedResult, error) {
 	// --- 1. 初始化 ---
 	progressCb("步骤 1/5: 初始化数据源...")
 	regionMap, err := locations.LoadLocationsFromFile(locationsPath)
@@ -91,10 +103,16 @@ func resolveDomains(domains []string, cfg *config.Config, progressCb ProgressCal
 	)
 	progressCb(fmt.Sprintf("开始并发解析 %d 个域名...", len(domains)))
 
+	// 增加对 DNSConcurrency 的检查
+	if cfg.DNSConcurrency <= 0 {
+		log.Printf("警告: DNSConcurrency 被设置为 %d，可能导致死锁。自动调整为默认值 10。", cfg.DNSConcurrency)
+		cfg.DNSConcurrency = 10
+	}
+
 	resolver := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{}
+			d := net.Dialer{Timeout: 5 * time.Second} // 为拨号本身也增加超时
 			return d.DialContext(ctx, "udp", "1.1.1.1:53")
 		},
 	}
@@ -118,7 +136,12 @@ func resolveDomains(domains []string, cfg *config.Config, progressCb ProgressCal
 			default:
 				lookupType = "ip"
 			}
-			ips, err := resolver.LookupIP(context.Background(), lookupType, d)
+
+			// 为 DNS 查询添加超时
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			ips, err := resolver.LookupIP(ctx, lookupType, d)
 			if err != nil {
 				log.Printf("域名 %s 解析失败: %v", d, err)
 				return
@@ -167,6 +190,12 @@ func testLatencies(ips []model.IPInfo, cfg *config.Config, regionMap locations.R
 		mu             sync.Mutex
 	)
 	progressCb(fmt.Sprintf("开始对 %d 个 Cloudflare IP 进行并发延迟测试...", len(ips)))
+
+	// 增加对 LatencyTestConcurrency 的检查
+	if cfg.LatencyTestConcurrency <= 0 {
+		log.Printf("警告: LatencyTestConcurrency 被设置为 %d，可能导致死锁。自动调整为默认值 10。", cfg.LatencyTestConcurrency)
+		cfg.LatencyTestConcurrency = 10
+	}
 	latencySemaphore := make(chan struct{}, cfg.LatencyTestConcurrency)
 
 	for _, ipInfo := range ips {
@@ -267,19 +296,27 @@ func groupResults(results []model.LatencyResult, groupBy string) map[string][]mo
 	return grouped
 }
 
-func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *config.Config, progressCb ProgressCallback) []model.FinalResult {
+func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *config.Config, progressCb ProgressCallback) []SimplifiedResult {
 	var (
-		finalResults []model.FinalResult
-		wg           sync.WaitGroup
-		mu           sync.Mutex
+		finalResults     []SimplifiedResult
+		wg               sync.WaitGroup
+		mu               sync.Mutex
+		discardedCounter int32 // 使用原子操作来安全地计数
 	)
+
+	const (
+		primaryTestURL   = "https://speed.cloudflare.com/__down?bytes=200000000"
+		secondaryTestURL = "https://cf.xiu2.xyz/url"
+	)
+	currentTestURL := primaryTestURL
+
 	speedTestSemaphore := make(chan struct{}, cfg.SpeedTestConcurrency)
 
 	for groupName, candidates := range groupedResults {
 		wg.Add(1)
 		go func(groupName string, candidates []model.LatencyResult) {
 			defer wg.Done()
-			var successfulTests []model.FinalResult
+			var successfulTests []SimplifiedResult
 
 			progressCb(fmt.Sprintf("开始测试分组 '%s'，目标 %d 个，候选 %d 个...", groupName, cfg.TopNPerGroup, len(candidates)))
 
@@ -289,20 +326,52 @@ func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *c
 					break
 				}
 
+				// 检查是否需要切换URL
+				if atomic.LoadInt32(&discardedCounter) >= 10 {
+					mu.Lock()
+					if currentTestURL == primaryTestURL {
+						currentTestURL = secondaryTestURL
+						progressCb(fmt.Sprintf("警告: 已连续舍弃 %d 个低速IP，自动切换到备用测速地址: %s", atomic.LoadInt32(&discardedCounter), secondaryTestURL))
+					}
+					mu.Unlock()
+				}
+
+				mu.Lock()
+				urlToTest := currentTestURL
+				mu.Unlock()
+
 				speedTestSemaphore <- struct{}{}
 
-				speedRes, err := tester.TestDownloadSpeed(&net.IPAddr{IP: candidate.Address}, "https://speed.cloudflare.com/__down?bytes=200000000", 10*time.Second, cfg.SpeedTestRateLimitMB)
+				speedRes, err := tester.TestDownloadSpeed(&net.IPAddr{IP: candidate.IPInfo.Address}, urlToTest, 10*time.Second, cfg.SpeedTestRateLimitMB)
 
 				<-speedTestSemaphore
 
 				if err != nil {
-					progressCb(fmt.Sprintf("IP %s 速度测试失败: %v", candidate.Address, err))
+					progressCb(fmt.Sprintf("IP %s 速度测试失败: %v", candidate.IPInfo.Address, err))
 					continue // 失败，继续下一个候选
 				}
 
-				result := model.FinalResult{
-					LatencyResult: candidate,
-					DownloadSpeed: speedRes.DownloadSpeed / 1024 / 1024, // B/s to MB/s
+				// 检查速度是否低于最低要求
+				speedInMBps := speedRes.DownloadSpeed / 1024 / 1024
+				if cfg.MinSpeed > 0 && speedInMBps < cfg.MinSpeed {
+					progressCb(fmt.Sprintf("IP %s 速度 %.2f MB/s 低于最低要求 %.2f MB/s, 已舍弃", candidate.IPInfo.Address, speedInMBps, cfg.MinSpeed))
+					mu.Lock()
+					isPrimaryURL := currentTestURL == primaryTestURL
+					mu.Unlock()
+					if isPrimaryURL {
+						atomic.AddInt32(&discardedCounter, 1)
+					}
+					continue // 速度不达标，继续下一个候选
+				}
+
+				result := SimplifiedResult{
+					Address:       candidate.IPInfo.Address.String(),
+					SourceDomain:  candidate.IPInfo.SourceDomain,
+					Delay:         candidate.Delay.Nanoseconds(),
+					LossRate:      candidate.LossRate,
+					Colo:          candidate.Colo,
+					Region:        candidate.Region,
+					DownloadSpeed: int(speedRes.DownloadSpeed / 1024), // B/s to KB/s, then to int
 				}
 
 				mu.Lock()
@@ -310,7 +379,7 @@ func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *c
 				finalResults = append(finalResults, result)
 				mu.Unlock()
 
-				progressCb(fmt.Sprintf("IP %s: 下载速度=%.2f MB/s (分组: %s)", candidate.Address, result.DownloadSpeed, groupName))
+				progressCb(fmt.Sprintf("IP %s: 下载速度=%.2f MB/s (分组: %s)", candidate.IPInfo.Address, float64(result.DownloadSpeed)/1024.0, groupName))
 			}
 			progressCb(fmt.Sprintf("分组 '%s' 测试完成，成功获取 %d 个结果。", groupName, len(successfulTests)))
 

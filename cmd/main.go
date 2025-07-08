@@ -4,7 +4,9 @@ import (
 	"Domain_IP_Selector_Go/internal/config"
 	"Domain_IP_Selector_Go/internal/engine"
 	"Domain_IP_Selector_Go/internal/output"
+	"Domain_IP_Selector_Go/internal/server"
 	_ "embed"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -41,10 +43,11 @@ func ensureFile(fileName string, defaultData []byte) (string, error) {
 }
 
 func main() {
-	log.Println("--- 开始域名优选 IP 引擎 ---")
+	// 定义命令行标志
+	cliMode := flag.Bool("cli", false, "以命令行模式运行")
+	flag.Parse()
 
-	// 1. 确保所有必需的文件都存在
-	log.Println("步骤 1/5: 检查并生成所需文件...")
+	// 确保所有必需的文件都存在
 	cfgPath, err := ensureFile("config.yaml", defaultConfigData)
 	if err != nil {
 		log.Fatalf("初始化配置文件失败: %v", err)
@@ -57,9 +60,23 @@ func main() {
 	if err != nil {
 		log.Fatalf("初始化 reputation_domains.txt 失败: %v", err)
 	}
-	log.Println("文件检查完成。")
 
-	// 2. 加载配置
+	exeDir := filepath.Dir(cfgPath)
+
+	if *cliMode {
+		// --- 命令行模式 ---
+		runCli(cfgPath, locationsPath, domainsPath, exeDir)
+	} else {
+		// --- Web 服务器模式 (默认) ---
+		server.Start(8080, cfgPath, locationsPath, domainsPath, exeDir)
+	}
+}
+
+// runCli 包含原始的命令行执行逻辑
+func runCli(cfgPath, locationsPath, domainsPath, exeDir string) {
+	log.Println("--- 以命令行模式运行 ---")
+
+	// 1. 加载配置
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
 		log.Fatalf("加载配置文件失败: %v", err)
@@ -71,14 +88,13 @@ func main() {
 		log.Println(message)
 	}
 
-	// 3. 运行优选引擎
-	exeDir := filepath.Dir(cfgPath)
+	// 2. 运行优选引擎
 	finalResults, err := engine.Run(cfg, locationsPath, domainsPath, exeDir, progressCallback)
 	if err != nil {
 		log.Fatalf("引擎运行时出错: %v", err)
 	}
 
-	// 4. 写入结果
+	// 3. 写入结果
 	log.Println("步骤 4/4: 写入结果文件...")
 	ipVersion := cfg.IPVersion
 	if ipVersion == "" {

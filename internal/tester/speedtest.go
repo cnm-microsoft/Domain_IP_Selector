@@ -12,6 +12,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	// 使用更大的缓冲区来提高单线程下载效率
+	BufferSize = 8192
+)
+
 // SpeedTestResult 包含一次下载速度测试的结果
 type SpeedTestResult struct {
 	DownloadSpeed float64 // in B/s
@@ -20,7 +25,13 @@ type SpeedTestResult struct {
 
 // TestDownloadSpeed 对单个 IP 进行下载速度测试
 func TestDownloadSpeed(ip *net.IPAddr, testURL string, timeout time.Duration, rateLimitMB float64) (*SpeedTestResult, error) {
-	speed, colo, err := downloadHandler(ip, testURL, timeout, rateLimitMB)
+	// 默认使用与 CloudflareST.exe 相同的测速地址
+	finalURL := "https://cf.xiu2.xyz/url"
+	if testURL != "" {
+		finalURL = testURL // 允许外部传入覆盖
+	}
+
+	speed, colo, err := downloadHandler(ip, finalURL, timeout, rateLimitMB)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +92,7 @@ func downloadHandler(ip *net.IPAddr, testURL string, timeout time.Duration, rate
 	timeEnd := timeStart.Add(timeout) // 加上下载测速时间得到的结束时间
 
 	contentLength := response.ContentLength // 文件大小
-	buffer := make([]byte, 8192)            // 增加缓冲区大小以提高效率
+	buffer := make([]byte, BufferSize)      // 使用我们修复后的 BufferSize
 
 	var (
 		contentRead     int64 = 0

@@ -1,14 +1,14 @@
 package output
 
 import (
-	"Domain_IP_Selector_Go/pkg/model"
+	"Domain_IP_Selector_Go/internal/engine"
 	"encoding/csv"
 	"fmt"
 	"os"
 )
 
 // WriteCSVFile 将最终结果列表写入到指定的 CSV 文件中
-func WriteCSVFile(filePath string, results []model.FinalResult) error {
+func WriteCSVFile(filePath string, results []engine.SimplifiedResult) error {
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("无法创建 CSV 文件 '%s': %w", filePath, err)
@@ -33,15 +33,19 @@ func WriteCSVFile(filePath string, results []model.FinalResult) error {
 	}
 
 	// 写入数据行
-	for _, r := range results {
+	// 将原始结果转换为对人类友好的格式
+	humanReadableResults := ToHumanReadable(results)
+
+	// 写入数据行
+	for _, r := range humanReadableResults {
 		row := []string{
-			r.Address.String(),
+			r.Address,
 			r.SourceDomain,
-			fmt.Sprintf("%.2f", float64(r.Delay.Milliseconds())),
+			fmt.Sprintf("%.2f", r.DelayMS),
 			fmt.Sprintf("%.2f", r.LossRate*100),
 			r.Colo,
 			r.Region,
-			fmt.Sprintf("%.2f", r.DownloadSpeed),
+			fmt.Sprintf("%.2f", r.DownloadSpeedMBps), // 使用转换后的 MB/s
 		}
 		if err := writer.Write(row); err != nil {
 			// 记录错误但继续尝试写入其他行
