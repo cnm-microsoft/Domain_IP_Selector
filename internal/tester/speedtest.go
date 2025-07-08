@@ -1,6 +1,7 @@
 package tester
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/VividCortex/ewma"
+	"golang.org/x/time/rate"
 )
 
 // SpeedTestResult 包含一次下载速度测试的结果
@@ -17,8 +19,8 @@ type SpeedTestResult struct {
 }
 
 // TestDownloadSpeed 对单个 IP 进行下载速度测试
-func TestDownloadSpeed(ip *net.IPAddr, testURL string, timeout time.Duration) (*SpeedTestResult, error) {
-	speed, colo, err := downloadHandler(ip, testURL, timeout)
+func TestDownloadSpeed(ip *net.IPAddr, testURL string, timeout time.Duration, rateLimitMB float64) (*SpeedTestResult, error) {
+	speed, colo, err := downloadHandler(ip, testURL, timeout, rateLimitMB)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +28,7 @@ func TestDownloadSpeed(ip *net.IPAddr, testURL string, timeout time.Duration) (*
 }
 
 // downloadHandler 是实际执行下载测速的内部函数
-func downloadHandler(ip *net.IPAddr, testURL string, timeout time.Duration) (float64, string, error) {
+func downloadHandler(ip *net.IPAddr, testURL string, timeout time.Duration, rateLimitMB float64) (float64, string, error) {
 	client := &http.Client{
 		Transport: &http.Transport{DialContext: getDialContext(ip, DefaultTCPPort)},
 		Timeout:   timeout,
@@ -50,16 +52,36 @@ func downloadHandler(ip *net.IPAddr, testURL string, timeout time.Duration) (flo
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return 0.0, "", fmt.Errorf("无效的状态码: %d", response.StatusCode)
+		bodyBytes, err := io.ReadAll(response.Body)
+		errorMsg := fmt.Sprintf("无效的状态码: %d", response.StatusCode)
+		if err == nil && len(bodyBytes) > 0 {
+			// 将响应体内容附加到错误信息中，限制长度以防刷屏
+			bodyStr := string(bodyBytes)
+			if len(bodyStr) > 200 {
+				bodyStr = bodyStr[:200]
+			}
+			errorMsg = fmt.Sprintf("%s, 响应: %s", errorMsg, bodyStr)
+		}
+		return 0.0, "", fmt.Errorf(errorMsg)
 	}
 	// 通过头部 Server 值判断是 Cloudflare 还是 AWS CloudFront 并设置 cfRay 为各自的机场地区码完整内容
 	colo := getHeaderColo(response.Header)
+
+	// 如果设置了速率限制，则创建限速器
+	var limiter *rate.Limiter
+	if rateLimitMB > 0 {
+		// 转换为 B/s
+		limit := rate.Limit(rateLimitMB * 1024 * 1024)
+		// 桶大小也设置为速率上限，允许一定的突发
+		burst := int(rateLimitMB * 1024 * 1024)
+		limiter = rate.NewLimiter(limit, burst)
+	}
 
 	timeStart := time.Now()           // 开始时间（当前）
 	timeEnd := timeStart.Add(timeout) // 加上下载测速时间得到的结束时间
 
 	contentLength := response.ContentLength // 文件大小
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 8192)            // 增加缓冲区大小以提高效率
 
 	var (
 		contentRead     int64 = 0
@@ -70,6 +92,10 @@ func downloadHandler(ip *net.IPAddr, testURL string, timeout time.Duration) (flo
 
 	var nextTime = timeStart.Add(timeSlice * time.Duration(timeCounter))
 	e := ewma.NewMovingAverage()
+
+	// 创建带超时的上下文
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	// 循环计算，如果文件下载完了（两者相等），则退出循环（终止测速）
 	for contentLength != contentRead {
@@ -84,6 +110,17 @@ func downloadHandler(ip *net.IPAddr, testURL string, timeout time.Duration) (flo
 		if currentTime.After(timeEnd) {
 			break
 		}
+
+		// 如果有限速器，则等待
+		if limiter != nil {
+			// WaitN 会阻塞直到可以读取 n 个字节
+			// 我们使用 buffer 的大小作为每次请求的量
+			if err := limiter.WaitN(ctx, len(buffer)); err != nil {
+				// 如果等待时上下文超时或被取消，则退出
+				break
+			}
+		}
+
 		bufferRead, err := response.Body.Read(buffer)
 		if err != nil {
 			if err != io.EOF { // 如果文件下载过程中遇到报错（如 Timeout），且并不是因为文件下载完了，则退出循环（终止测速）

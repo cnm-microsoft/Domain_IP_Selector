@@ -19,13 +19,13 @@ const (
 )
 
 // IPNetSet 用于高效地检查 IP 是否属于某个范围
-type IPNetSet struct {
-	nets []*net.IPNet
+type CFIPSet struct {
+	Nets []*net.IPNet
 }
 
 // Contains 检查给定的 IP 是否在集合中
-func (s *IPNetSet) Contains(ip net.IP) bool {
-	for _, n := range s.nets {
+func (s *CFIPSet) Contains(ip net.IP) bool {
+	for _, n := range s.Nets {
 		if n.Contains(ip) {
 			return true
 		}
@@ -34,7 +34,7 @@ func (s *IPNetSet) Contains(ip net.IP) bool {
 }
 
 // LoadCFIPs 确保 Cloudflare IP 列表可用，并在必要时下载
-func LoadCFIPs(cachePath string, cfg *config.Config) (*IPNetSet, error) {
+func LoadCFIPs(cachePath string, cfg *config.Config) (*CFIPSet, error) {
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		fmt.Printf("本地缓存 '%s' 不存在，正在从 Cloudflare 官网下载...\n", cachePath)
 		err := downloadAndCacheCFIPs(cachePath, cfg)
@@ -102,14 +102,14 @@ func downloadURL(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func loadIPsFromFile(filePath string) (*IPNetSet, error) {
+func loadIPsFromFile(filePath string) (*CFIPSet, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("无法打开 IP 文件 '%s': %w", filePath, err)
 	}
 	defer file.Close()
 
-	ipNetSet := &IPNetSet{nets: []*net.IPNet{}}
+	ipNetSet := &CFIPSet{Nets: []*net.IPNet{}}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -121,14 +121,14 @@ func loadIPsFromFile(filePath string) (*IPNetSet, error) {
 			// 忽略无法解析的行
 			continue
 		}
-		ipNetSet.nets = append(ipNetSet.nets, ipNet)
+		ipNetSet.Nets = append(ipNetSet.Nets, ipNet)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("读取 IP 文件时出错: %w", err)
 	}
 
-	if len(ipNetSet.nets) == 0 {
+	if len(ipNetSet.Nets) == 0 {
 		return nil, fmt.Errorf("IP 文件 '%s' 中未找到有效的 CIDR", filePath)
 	}
 
