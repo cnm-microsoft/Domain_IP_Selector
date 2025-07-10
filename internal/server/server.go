@@ -65,7 +65,7 @@ func Start(port int, cfgPath, locationsPath, domainsPath, exeDir string) {
 	http.HandleFunc("/api/locations", handleLocations(locationsPath))
 	http.HandleFunc("/ws/run", handleWebSocket(cfgPath, locationsPath, domainsPath, exeDir))
 
-	addr := fmt.Sprintf("localhost:%d", port)
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	log.Printf("服务器正在启动，请在浏览器中打开 http://%s", addr)
 
 	// 尝试在默认浏览器中打开 URL
